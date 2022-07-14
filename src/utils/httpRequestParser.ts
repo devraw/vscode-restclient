@@ -10,6 +10,8 @@ import { getContentType, getHeader, removeHeader } from './misc';
 import { parseRequestHeaders, resolveRequestBodyPath } from './requestParserUtil';
 import { convertStreamToString } from './streamUtility';
 import { VariableProcessor } from "./variableProcessor";
+import { FileVariableProvider } from './httpVariableProviders/fileVariableProvider';
+import { getCurrentTextDocument } from './workspaceUtility';
 
 const CombinedStream = require('combined-stream');
 const encodeurl = require('encodeurl');
@@ -19,6 +21,7 @@ enum ParseState {
     Header,
     Body,
     Test,
+    Script
 }
 
 export class HttpRequestParser implements RequestParser {
@@ -27,6 +30,8 @@ export class HttpRequestParser implements RequestParser {
     private readonly inputFileSyntax = /^<(?:(?<processVariables>@)(?<encoding>\w+)?)?\s+(?<filepath>.+?)\s*$/;
     private readonly defaultFileEncoding = 'utf8';
     private readonly testLinePrefix = /^@tests/;
+    private readonly scriptLinePrefix = /^@script$/;
+    private readonly fileScriptKey = '#FileScript#';
 
     public constructor(private readonly requestRawText: string, private readonly settings: IRestClientSettings) {
     }
@@ -40,6 +45,7 @@ export class HttpRequestParser implements RequestParser {
         const bodyLines: string[] = [];
         const variableLines: string[] = [];
         const testLines: string[] = [];
+        const scriptLines: string[] = [];
 
         let state = ParseState.URL;
         let currentLine: string | undefined;
@@ -70,13 +76,19 @@ export class HttpRequestParser implements RequestParser {
                     }
                     break;
                 case ParseState.Body:
-                    if (this.testLinePrefix.test(currentLine?.trim())) {
-                        state = ParseState.Test;
-                    } else if (this.testLinePrefix.test(nextLine?.trim())) {
-                        lines.shift();
+                    if (this.scriptLinePrefix.test(currentLine?.trim())) {
+                        state = ParseState.Script;
+                    } else if (this.testLinePrefix.test(currentLine?.trim())) {
                         state = ParseState.Test;
                     } else {
                         bodyLines.push(currentLine);
+                    }
+                    break;
+                case ParseState.Script:
+                    if (this.testLinePrefix.test(currentLine?.trim())) {
+                        state = ParseState.Test;
+                    } else {
+                        scriptLines.push(currentLine);
                     }
                     break;
                 case ParseState.Test:
@@ -134,7 +146,22 @@ export class HttpRequestParser implements RequestParser {
             requestLine.url = `${scheme}://${host}${requestLine.url}`;
         }
 
-        return new HttpRequest(requestLine.method, requestLine.url, headers, body, bodyLines.join(EOL), name, testLines.join(EOL));
+        let scripts: string[] = [];
+        const document = getCurrentTextDocument();
+        if (document) {
+            const fileScriptVariable = await FileVariableProvider.Instance.get(this.fileScriptKey, document);
+            if (fileScriptVariable && typeof fileScriptVariable.value === 'string') {
+                let fileScriptLines = await this.parseScript([fileScriptVariable.value]);
+                scripts.push(fileScriptLines.join(EOL));
+            }
+        }
+
+        if (scriptLines.length > 0) {
+            let requestScriptLines = await this.parseScript(scriptLines);
+            scripts.push(requestScriptLines.join(EOL));
+        }
+
+        return new HttpRequest(requestLine.method, requestLine.url, headers, body, bodyLines.join(EOL), name, scripts, testLines.join(EOL));
     }
 
     private async createGraphQlBody(variableLines: string[], contentTypeHeader: string | undefined, body: string | Stream | undefined) {
@@ -239,5 +266,45 @@ export class HttpRequestParser implements RequestParser {
 
     private getLineEnding(contentTypeHeader: string | undefined) {
         return MimeUtility.isMultiPartFormData(contentTypeHeader) ? '\r\n' : EOL;
+    }
+
+    private async parseScript(lines: string[]): Promise<string[]> {
+        if (lines.length === 0) {
+            return [];
+        }
+
+        // Check if needed to load script file
+        if (lines.every(line => !this.inputFileSyntax.test(line))) {
+            return lines;
+        } else {
+            const resolvedScriptLines: string[] = [];
+            for (const [index] of lines.entries()) {
+                const line = lines[index];
+                if (this.inputFileSyntax.test(line)) {
+                    const groups = this.inputFileSyntax.exec(line);
+                    const groupsValues = groups?.groups;
+                    if (groups?.length === 4 && !!groupsValues) {
+                        const inputFilePath = groupsValues.filepath;
+                        const fileAbsolutePath = await resolveRequestBodyPath(inputFilePath);
+                        if (fileAbsolutePath) {
+                            if (groupsValues.processVariables) {
+                                const buffer = await fs.readFile(fileAbsolutePath);
+                                const fileContent = buffer.toString(groupsValues.encoding || this.defaultFileEncoding);
+                                const resolvedContent = await VariableProcessor.processRawRequest(fileContent);
+                                resolvedScriptLines.push(resolvedContent);
+                            } else {
+                                resolvedScriptLines.push(line);
+                            }
+                        } else {
+                            resolvedScriptLines.push(line);
+                        }
+                    }
+                } else {
+                    resolvedScriptLines.push(line);
+                }
+            }
+
+            return resolvedScriptLines;
+        }
     }
 }

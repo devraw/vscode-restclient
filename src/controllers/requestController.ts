@@ -9,6 +9,7 @@ import { HttpClient } from '../utils/httpClient';
 import { RequestState, RequestStatusEntry } from '../utils/requestStatusBarEntry';
 import { RequestVariableCache } from "../utils/requestVariableCache";
 import { Selector } from '../utils/selector';
+import { ScriptRunner } from '../utils/scriptRunner';
 import { TestRunner } from '../utils/testRunner';
 import { UserDataManager } from '../utils/userDataManager';
 import { getCurrentTextDocument } from '../utils/workspaceUtility';
@@ -93,6 +94,15 @@ export class RequestController {
 
         // set http request
         try {
+            // Execute script
+            const scripts = httpRequest.scripts;
+            if (scripts && scripts.length > 0) {
+                for (let script of scripts) {
+                    const scriptRunner = new ScriptRunner(httpRequest);
+                    await scriptRunner.execute(script);
+                }
+            }
+
             const response = await this._httpClient.send(httpRequest, settings);
 
             // check cancel

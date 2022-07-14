@@ -14,6 +14,7 @@ export class HttpRequest {
         public body?: string | Stream,
         public rawBody?: string,
         public name?: string,
+        public scripts?: string[],
         public tests?: string) {
             this.method = method.toLocaleUpperCase();
             this.isCancelled = false;
