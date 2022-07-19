@@ -19,6 +19,7 @@ import { MarkdownCodeLensProvider } from './providers/markdownCodeLensProvider';
 import { RequestVariableCompletionItemProvider } from "./providers/requestVariableCompletionItemProvider";
 import { RequestVariableDefinitionProvider } from './providers/requestVariableDefinitionProvider';
 import { RequestVariableHoverProvider } from './providers/requestVariableHoverProvider';
+import { HttpClientItem, HttpTreeProvider } from './providers/treeViewProvider';
 import { AadTokenCache } from './utils/aadTokenCache';
 import { ConfigurationDependentRegistration } from './utils/dependentRegistration';
 import { UserDataManager } from './utils/userDataManager';
@@ -50,6 +51,13 @@ export async function activate(context: ExtensionContext) {
             window.showErrorMessage(error.message);
         });
     }));
+
+    const httpTreeProvider = new HttpTreeProvider();
+    httpTreeProvider.setRequestController(requestController);
+    window.registerTreeDataProvider('httpRequest', httpTreeProvider);
+    commands.registerCommand('rest-client.refreshEntry', (node: HttpClientItem) => httpTreeProvider.refresh(node));
+    commands.registerCommand('rest-client.sendRequest', (node: HttpClientItem) => httpTreeProvider.run(node));
+    commands.registerCommand('rest-client.openRequest', (node: HttpClientItem) => httpTreeProvider.open(node));
 
     const documentSelector = [
         { language: 'http', scheme: '*' }

@@ -11,7 +11,7 @@ import { parseRequestHeaders, resolveRequestBodyPath } from './requestParserUtil
 import { convertStreamToString } from './streamUtility';
 import { VariableProcessor } from "./variableProcessor";
 import { FileVariableProvider } from './httpVariableProviders/fileVariableProvider';
-import { getCurrentTextDocument } from './workspaceUtility';
+import { TextDocument } from 'vscode';
 
 const CombinedStream = require('combined-stream');
 const encodeurl = require('encodeurl');
@@ -33,7 +33,7 @@ export class HttpRequestParser implements RequestParser {
     private readonly scriptLinePrefix = /^@script$/;
     private readonly fileScriptKey = '#FileScript#';
 
-    public constructor(private readonly requestRawText: string, private readonly settings: IRestClientSettings) {
+    public constructor(private readonly requestRawText: string, private readonly settings: IRestClientSettings, private readonly document: TextDocument) {
     }
 
     public async parseHttpRequest(name?: string): Promise<HttpRequest> {
@@ -147,13 +147,10 @@ export class HttpRequestParser implements RequestParser {
         }
 
         let scripts: string[] = [];
-        const document = getCurrentTextDocument();
-        if (document) {
-            const fileScriptVariable = await FileVariableProvider.Instance.get(this.fileScriptKey, document);
-            if (fileScriptVariable && typeof fileScriptVariable.value === 'string') {
-                let fileScriptLines = await this.parseScript([fileScriptVariable.value]);
-                scripts.push(fileScriptLines.join(EOL));
-            }
+        const fileScriptVariable = await FileVariableProvider.Instance.get(this.fileScriptKey, this.document);
+        if (fileScriptVariable && typeof fileScriptVariable.value === 'string') {
+            let fileScriptLines = await this.parseScript([fileScriptVariable.value]);
+            scripts.push(fileScriptLines.join(EOL));
         }
 
         if (scriptLines.length > 0) {
@@ -242,7 +239,7 @@ export class HttpRequestParser implements RequestParser {
                             if (groupsValues.processVariables) {
                                 const buffer = await fs.readFile(fileAbsolutePath);
                                 const fileContent = buffer.toString(groupsValues.encoding || this.defaultFileEncoding);
-                                const resolvedContent = await VariableProcessor.processRawRequest(fileContent);
+                                const resolvedContent = await VariableProcessor.processRawRequest(fileContent, this.document);
                                 combinedStream.append(resolvedContent);
                             } else {
                                 combinedStream.append(fs.createReadStream(fileAbsolutePath));
@@ -290,7 +287,7 @@ export class HttpRequestParser implements RequestParser {
                             if (groupsValues.processVariables) {
                                 const buffer = await fs.readFile(fileAbsolutePath);
                                 const fileContent = buffer.toString(groupsValues.encoding || this.defaultFileEncoding);
-                                const resolvedContent = await VariableProcessor.processRawRequest(fileContent);
+                                const resolvedContent = await VariableProcessor.processRawRequest(fileContent, this.document);
                                 resolvedScriptLines.push(resolvedContent);
                             } else {
                                 resolvedScriptLines.push(line);

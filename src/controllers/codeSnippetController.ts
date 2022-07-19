@@ -46,7 +46,7 @@ export class CodeSnippetController {
             return;
         }
 
-        const selectedRequest = await Selector.getRequest(editor);
+        const selectedRequest = await Selector.getRequest(document, editor.selection);
         if (!selectedRequest) {
             return;
         }
@@ -56,7 +56,7 @@ export class CodeSnippetController {
         const settings: IRestClientSettings = new RestClientSettings(requestSettings);
 
         // parse http request
-        const httpRequest = await RequestParserFactory.createRequestParser(text, settings).parseHttpRequest();
+        const httpRequest = await RequestParserFactory.createRequestParser(text, document , settings).parseHttpRequest();
 
         const harHttpRequest = this.convertToHARHttpRequest(httpRequest);
         const snippet = new HTTPSnippet(harHttpRequest);
@@ -118,7 +118,7 @@ export class CodeSnippetController {
             return;
         }
 
-        const selectedRequest = await Selector.getRequest(editor);
+        const selectedRequest = await Selector.getRequest(document, editor.selection);
         if (!selectedRequest) {
             return;
         }
@@ -128,7 +128,7 @@ export class CodeSnippetController {
         const settings: IRestClientSettings = new RestClientSettings(requestSettings);
 
         // parse http request
-        const httpRequest = await RequestParserFactory.createRequestParser(text, settings).parseHttpRequest();
+        const httpRequest = await RequestParserFactory.createRequestParser(text, document, settings).parseHttpRequest();
 
         const harHttpRequest = this.convertToHARHttpRequest(httpRequest);
         const addPrefix = !(url.parse(harHttpRequest.url).protocol);

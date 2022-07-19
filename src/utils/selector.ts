@@ -1,5 +1,5 @@
 import { EOL } from 'os';
-import { Position, Range, TextDocument, TextEditor, window } from 'vscode';
+import { Position, Range, TextDocument, window } from 'vscode';
 import * as Constants from '../common/constants';
 import { fromString as ParseReqMetaKey, RequestMetadata } from '../models/requestMetadata';
 import { SelectedRequest } from '../models/SelectedRequest';
@@ -17,34 +17,62 @@ interface PromptVariableDefinition {
     description?: string;
 }
 
+export interface SelectedRange {
+    range: Range;
+    name: string;
+}
+
 export class Selector {
     private static readonly responseStatusLineRegex = /^\s*HTTP\/[\d.]+/;
 
-    public static async getRequest(editor: TextEditor, range: Range | null = null): Promise<SelectedRequest | null> {
-        if (!editor.document) {
+    public static async getAllRequests(document: TextDocument): Promise<SelectedRange[] | null> {
+        const blocks: SelectedRange[] = [];
+        const lines: string[] = document.getText().split(Constants.LineSplitterRegex);
+        const requestRanges: [number, number][] = this.getRequestRanges(lines);
+
+        for (const [blockStart, blockEnd] of requestRanges) {
+            const range = new Range(blockStart, 0, blockEnd, document.lineAt(blockEnd).text.length);
+            let request = await this.getRequest(document, range);
+            if (!request) {
+                continue;
+            }
+            const { metadatas } = request;
+            const name = metadatas.get(RequestMetadata.Name);
+            blocks.push({ range: range, name: name || ''});
+        }
+
+        return blocks;
+    }
+
+    public static async getRequest(document: TextDocument, range: Range | null = null): Promise<SelectedRequest | null> {
+        if (!document) {
             return null;
         }
 
         let selectedText: string | null;
-        if (editor.selection.isEmpty || range) {
-            const activeLine = range?.start.line ?? editor.selection.active.line;
-            if (editor.document.languageId === 'markdown') {
+        if (range) {
+            const activeLine = range?.start.line;
+            if (document.languageId === 'markdown') {
                 selectedText = null;
 
-                for (const r of Selector.getMarkdownRestSnippets(editor.document)) {
+                for (const r of Selector.getMarkdownRestSnippets(document)) {
                     const snippetRange = new Range(r.start.line + 1, 0, r.end.line, 0);
                     if (snippetRange.contains(new Position(activeLine, 0))) {
-                        selectedText = editor.document.getText(snippetRange);
+                        selectedText = document.getText(snippetRange);
                     }
                 }
 
             } else {
-                selectedText = this.getDelimitedText(editor.document.getText(), activeLine);
+                selectedText = this.getDelimitedText(document.getText(), activeLine);
             }
         } else {
-            selectedText = editor.document.getText(editor.selection);
+            selectedText = document.getText();
         }
 
+        return this.createRequest(selectedText, document);
+    }
+
+    public static async createRequest(selectedText: string | null, document: TextDocument): Promise<SelectedRequest | null> {
         if (selectedText === null) {
             return null;
         }
@@ -72,7 +100,7 @@ export class Selector {
         selectedText = rawLines.slice(requestRange[0], requestRange[1] + 1).join(EOL);
 
         // variables replacement
-        selectedText = await VariableProcessor.processRawRequest(selectedText, promptVariables);
+        selectedText = await VariableProcessor.processRawRequest(selectedText, document, promptVariables);
 
         return {
             text: selectedText,

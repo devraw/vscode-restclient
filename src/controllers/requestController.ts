@@ -9,6 +9,7 @@ import { HttpClient } from '../utils/httpClient';
 import { RequestState, RequestStatusEntry } from '../utils/requestStatusBarEntry';
 import { RequestVariableCache } from "../utils/requestVariableCache";
 import { Selector } from '../utils/selector';
+import { SelectedRequest } from '../models/SelectedRequest';
 import { ScriptRunner } from '../utils/scriptRunner';
 import { TestRunner } from '../utils/testRunner';
 import { UserDataManager } from '../utils/userDataManager';
@@ -33,14 +34,23 @@ export class RequestController {
     }
 
     @trace('Request')
-    public async run(range: Range) {
+    public async run(range: Range, document?: TextDocument) {
         const editor = window.activeTextEditor;
-        const document = getCurrentTextDocument();
-        if (!editor || !document) {
-            return;
-        }
+        let selectedRequest: SelectedRequest | null;
 
-        const selectedRequest = await Selector.getRequest(editor, range);
+        // get request from known range & document
+        if (document) {
+            const selectedText = document.getText(range);
+            selectedRequest = await Selector.createRequest(selectedText, document);
+        } else {
+            // get request from opened editor
+            document = getCurrentTextDocument();
+            if (!editor || !document) {
+                return;
+            }
+
+            selectedRequest = await Selector.getRequest(editor.document, range);
+        }
         if (!selectedRequest) {
             return;
         }
@@ -60,7 +70,7 @@ export class RequestController {
         const settings: IRestClientSettings = new RestClientSettings(requestSettings);
 
         // parse http request
-        const httpRequest = await RequestParserFactory.createRequestParser(text, settings).parseHttpRequest(name);
+        const httpRequest = await RequestParserFactory.createRequestParser(text, document, settings).parseHttpRequest(name);
 
         await this.runCore(httpRequest, settings, document);
     }

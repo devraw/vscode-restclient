@@ -46,7 +46,7 @@ export class HttpDocumentSymbolProvider implements DocumentSymbolProvider {
             }
 
             if (blockStart <= blockEnd) {
-                const [name, container] = await this.getRequestSymbolInfo(lines[blockStart], requestName);
+                const [name, container] = await this.getRequestSymbolInfo(lines[blockStart], requestName, document);
                 symbols.push(
                     new SymbolInformation(
                         name,
@@ -66,14 +66,14 @@ export class HttpDocumentSymbolProvider implements DocumentSymbolProvider {
         return [line.substring(1, line.indexOf('=')).trim(), fileName!];
     }
 
-    private async getRequestSymbolInfo(rawText: string, name: string | undefined): Promise<[string, string]> {
+    private async getRequestSymbolInfo(rawText: string, name: string | undefined, document: TextDocument): Promise<[string, string]> {
         // For request with name, return the request name and file name instead
         if (name) {
             return [name, getCurrentHttpFileName()!];
         }
 
-        const text = await VariableProcessor.processRawRequest(rawText);
-        const parser = RequestParserFactory.createRequestParser(text);
+        const text = await VariableProcessor.processRawRequest(rawText, document);
+        const parser = RequestParserFactory.createRequestParser(text, document);
         const request = await parser.parseHttpRequest();
         const parsedUrl = url.parse(request.url);
         return [`${request.method} ${parsedUrl.path}`, parsedUrl.host || ''];
