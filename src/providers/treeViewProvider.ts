@@ -163,11 +163,14 @@ export class HttpClientItem extends vscode.TreeItem {
 }
 
 async function openDocument(uri: vscode.Uri, range? : vscode.Range) {
-    if (vscode.window.visibleTextEditors.length > 0) {
-        for (const editor of vscode.window.visibleTextEditors) {
-            if (editor.document.uri.toString() === uri.toString()) {
-                await vscode.window.showTextDocument(uri, {preview: false, viewColumn: editor.viewColumn, selection: range});
-                return;
+    const tabGroups = vscode.window.tabGroups.all;
+    if (tabGroups && tabGroups.length > 0) {
+        for (const tabGroup of tabGroups) {
+            for (const tab of tabGroup.tabs) {
+                if (tab.input instanceof vscode.TabInputText && tab.input.uri.toString() === uri.toString()) {
+                    await vscode.window.showTextDocument(uri, {preview: false, viewColumn: tabGroup.viewColumn, selection: range});
+                    return;
+                }
             }
         }
     }
