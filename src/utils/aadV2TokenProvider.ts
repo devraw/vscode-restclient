@@ -126,7 +126,7 @@ export class AadV2TokenProvider {
         const messageBoxOptions = { modal: true };
         const signInPrompt = `Sign in to Azure AD with the following code (will be copied to the clipboard) to add a token to your request.\r\n\r\nCode: ${deviceCodeResponse.user_code}`;
         const donePrompt = `1. Azure AD verification page opened in default browser (you may need to switch apps)\r\n2. Paste code to sign in and authorize VS Code (already copied to the clipboard)\r\n3. Confirm when done\r\n4. Token will be copied to the clipboard when finished\r\n\r\nCode: ${deviceCodeResponse.user_code}`;
-        const signIn = "Sign in";
+        const signIn: string = "Sign in";
         const tryAgain = "Try again";
         const done = "Done";
 
