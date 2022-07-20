@@ -174,5 +174,5 @@ async function openDocument(uri: vscode.Uri, range? : vscode.Range) {
             }
         }
     }
-    await vscode.window.showTextDocument(uri, {preview: false, selection: range});
+    await vscode.window.showTextDocument(uri, {preview: false, viewColumn: vscode.ViewColumn.One, selection: range});
 }
