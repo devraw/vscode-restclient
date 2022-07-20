@@ -85,6 +85,7 @@ export class HttpTreeProvider implements vscode.TreeDataProvider<HttpClientItem>
             let result: HttpClientItem[] = [];
             let level = {[resultKey]: result};
             let httpFiles = await vscode.workspace.findFiles(new RelativePattern(workspaceFolder, '**/*.http'), '**/node_modules/**');
+            httpFiles.sort((a, b) => a.path.localeCompare(b.path));
             for (let httpFile of httpFiles) {
                 const relativePath = httpFile.path.substring(workspaceFolder.uri.path.length + 1);
                 let prevPath = '';
