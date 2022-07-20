@@ -20,30 +20,35 @@ export class ScriptRunner {
             return;
         }
 
-        try {
-            const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+        const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
 
-            const scriptFunction = new AsyncFunction("rc", scriptLines);
-            
-            let request = this.request;
-            return new Promise(async resolve => {
+        const scriptFunction = new AsyncFunction("rc", scriptLines);
+        
+        let request = this.request;
+        return new Promise(async (resolve, reject) => {
+            try {
                 await scriptFunction({request, crypto, querystring, CombinedStream, busboy});
                 resolve();
-            });
-        } catch (error) {
-            let errorLine = '';
-            if (error.stack) {
-                const match = error.stack.match(stackLineRegex);
-
-                if (match && match.groups?.line && match.groups?.column) {
-                    const line = Number(match?.groups?.line) - 2;
-                    const column = match?.groups?.column;
-                    errorLine = `${line}:${column}`;
-                }
+            } catch(e) {
+                this.showErrorMessage(e);
+                reject(e);
             }
-            
-            console.error(error.stack);
-            window.showErrorMessage(error.stack.split("\n")[0] + (errorLine ? " at " + errorLine : ""));
+        });
+    }
+
+    private showErrorMessage(error) {
+        let errorLine = '';
+        if (error.stack) {
+            const match = error.stack.match(stackLineRegex);
+
+            if (match && match.groups?.line && match.groups?.column) {
+                const line = Number(match?.groups?.line) - 2;
+                const column = match?.groups?.column;
+                errorLine = `${line}:${column}`;
+            }
         }
+        
+        console.error(error.stack);
+        window.showErrorMessage(error.stack.split("\n")[0] + (errorLine ? " at " + errorLine : ""));
     }
 }
