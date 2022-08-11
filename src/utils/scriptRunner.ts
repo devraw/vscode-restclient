@@ -19,21 +19,14 @@ export class ScriptRunner {
         if (!scriptLines) {
             return;
         }
-
         const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-
         const scriptFunction = new AsyncFunction("rc", scriptLines);
-        
         let request = this.request;
-        return new Promise(async (resolve, reject) => {
-            try {
-                await scriptFunction({request, crypto, querystring, CombinedStream, busboy});
-                resolve();
-            } catch(e) {
-                this.showErrorMessage(e);
-                reject(e);
-            }
-        });
+        try {
+            await scriptFunction({request, crypto, querystring, CombinedStream, busboy});
+        } catch(e) {
+            this.showErrorMessage(e);
+        }
     }
 
     private showErrorMessage(error) {
